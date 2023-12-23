@@ -1,0 +1,7 @@
+- name: Documentation
+  hosts: localhost
+  tasks:
+    - name: 'Generate Documentation'
+      template:
+        src: documentation.j2
+        dest: documentation.txt

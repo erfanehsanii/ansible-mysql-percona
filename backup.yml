@@ -1,0 +1,13 @@
+- name: Backup MySQL Database
+  hosts: master
+  become: yes
+  tasks:
+    - name: 'Mysql backup directory'
+      file:
+        path: /home/
+        state: directory
+
+    - name: 'Mysql backup'
+      command: mysqldump -u root -p{{ sql_password }} --all-databases > /home/mysql_backup.sql
+      args:
+        creates: /home/mysql_backup.sql

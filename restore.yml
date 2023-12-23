@@ -1,0 +1,12 @@
+- name: Restore MySQL Database
+  hosts: replica
+  become: yes
+  tasks:
+    - name: 'Copy Mysql backup file'
+      copy:
+        src: /home/mysql_backup.sql
+        dest: /tmp/mysql_backup.sql
+
+    - name: 'Restore MySQL database'
+      command: mysql -u root -p{{ sql_password }} < /tmp/mysql_backup.sql
+

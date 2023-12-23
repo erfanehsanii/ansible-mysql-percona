@@ -1,0 +1,111 @@
+- name: 'percona'
+  hosts: db_group  
+
+  tasks:
+    - name: 'update apt cache'
+      apt:
+        update_cache: yes
+
+    - name: 'Install Gnup'
+      apt:
+        name: gnupg2
+        state: present
+
+    - name: 'Percona Packages'
+      get_url:      
+        url: "https://repo.percona.com/apt/percona-release_latest.{{ ansible_distribution_release }}_all.deb"
+        dest: "/tmp/percona-release_latest.{{ ansible_distribution_release }}_all.deb"
+          
+    - name: 'Install Package'
+      apt:
+        deb: '/tmp/percona-release_latest.{{ ansible_distribution_release }}_all.deb'
+        state: present
+
+    - name: 'update apt cache'
+      apt:
+        update_cache: yes
+
+    - name: 'Install Mysql 5.7'
+      apt:
+        name: 'percona-server-server-5.7'
+        state: present
+
+    - name: 'Python'
+      apt:
+        name: 'python3-pymysql'
+        state: present
+
+- name: 'Master Config'
+  hosts: master
+  tasks:
+    - name: 'vault pass'
+      include_vars: your_ansible_vault_file.yml
+
+    - name: 'MySQL root password'
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        login_user: "{{ sql_user }}"
+        login_password: ''
+        name: "{{ sql_user }}" #Admin user for MySQL
+        password: "{{ sql_password }}" #Admin password for MySQL
+        host: localhost
+        state: present
+
+    - name: 'Configure replication user'
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        login_user: "{{ sql_user }}"
+        login_password: "{{ sql_password }}"
+        name:  "{{ replica_user }}"
+        password: "{{ replica_password }}"
+        host: "%"
+        priv: "REPLICATION SLAVE ON *.*"
+        state: present        
+
+    - name: 'Configure seting for master'
+      lineinfile:
+        path:  /etc/mysql/percona-server.conf.d/mysqld.cnf
+        line: "{{ item }}"
+      loop:
+        - "server_id = 1"
+        - "log_bin = /var/log/mysql/mysql-bin.log"
+        - "log_bin_index = /var/log/mysql/mysql-bin.log.index"
+        - "expire_logs_days = 10"
+        - "max_binlog_size = 100M"
+        - "binlog_ignore_db = mysql"
+        - "bind_address = your master address"
+          
+- name: 'Replication config'
+  hosts: replica
+  become: yes
+  tasks:
+    - name: 'vault pass'
+      include_vars: your_ansible_vault_file.yml
+
+    - name: 'Set root password for replica'
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        login_user: "{{ sql_user }}"
+        login_password: ''        
+        name: "{{ sql_user }}"
+        password:  "{{ sql_password }}"
+        host: localhost
+
+    - name: 'Configure replication settings'
+      lineinfile:
+        path:  /etc/mysql/percona-server.conf.d/mysqld.cnf
+        line: "{{ item }}"
+      loop:
+        - "server_id = 2"
+        - "bind_address = your master address"
+        - "log-slave-updates = 1"
+
+    - name: 'Configure MySQL replication'
+      mysql_replication:
+        mode: change_master
+        master_host: master ip 
+        master_user: abo
+        master_password: '{{ replica_password }}'
+        replicate_do_db: '*'
+        auto_position: yes        
+      become: yes

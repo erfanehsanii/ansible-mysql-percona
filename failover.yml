@@ -1,0 +1,14 @@
+- name: Failover Setup
+  hosts: paas-dbssd37
+  become: yes
+  tasks:
+    - name: 'Monitor Service'
+      service_facts:
+        filters:
+          name: mysql
+      register: mysql_service
+
+    - name: 'Failover - convert Replica to Master'
+      command: mysql -e "STOP SLAVE; RESET MASTER;"
+      when: "'mysql' in mysql_service and mysql_service['mysql']['state'] == 'stopped'"
+
